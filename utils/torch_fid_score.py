@@ -28,10 +28,12 @@ import os
 
 import numpy as np
 import torch
-from utils.inception import InceptionV3
 from torch.nn.functional import adaptive_avg_pool2d
 
+from utils.inception import InceptionV3
+from utils.utils import check_gpu
 
+device = check_gpu()
 
 # Pytorch implementation of matrix sqrt, from Tsung-Yu Lin, and Subhransu Maji
 # https://github.com/msubhransu/matrix-sqrt
@@ -41,9 +43,9 @@ def sqrt_newton_schulz(A, numIters, dtype=None):
     batchSize = A.shape[0]
     dim = A.shape[1]
     normA = A.mul(A).sum(dim=1).sum(dim=1).sqrt()
-    Y = A.div(normA.view(batchSize, 1, 1).expand_as(A)).to("cuda:0")
-    I = torch.eye(dim, dim).view(1, dim, dim).repeat(batchSize, 1, 1).type(dtype).to("cuda:0")
-    Z = torch.eye(dim, dim).view(1, dim, dim).repeat(batchSize, 1, 1).type(dtype).to("cuda:0")
+    Y = A.div(normA.view(batchSize, 1, 1).expand_as(A)).to(device)
+    I = torch.eye(dim, dim).view(1, dim, dim).repeat(batchSize, 1, 1).type(dtype).to(device)
+    Z = torch.eye(dim, dim).view(1, dim, dim).repeat(batchSize, 1, 1).type(dtype).to(device)
     for i in range(numIters):
         T = 0.5 * (3.0 * I - Z.bmm(Y))
         Y = Y.bmm(T)
@@ -85,7 +87,7 @@ def torch_cov(m, rowvar=False):
 
 
 def get_activations(gen_imgs, model, batch_size=50, dims=2048,
-                    cuda=False, verbose=False):
+                    verbose=False):
     """Calculates the activations of the pool_3 layer for all images.
     Params:
     -- files       : List of image files paths
@@ -96,7 +98,6 @@ def get_activations(gen_imgs, model, batch_size=50, dims=2048,
                      behavior is retained to match the original FID score
                      implementation.
     -- dims        : Dimensionality of features returned by Inception
-    -- cuda        : If set to True, use GPU
     -- verbose     : If set to True and parameter out_step is given, the number
                      of calculated batches is reported.
     Returns:
@@ -127,8 +128,8 @@ def get_activations(gen_imgs, model, batch_size=50, dims=2048,
         end = start + batch_size
 
         images = gen_imgs[start: end]
-        model.to("cuda:0")
-        pred = model(images.to("cuda:0"))[0]
+        model.to(device)
+        pred = model(images.to(device))[0]
 
         # If model output is not scalar, apply global spatial average pooling.
         # This happens if you choose a dimensionality not equal 2048.
@@ -177,7 +178,7 @@ def torch_calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
 
 
 def calculate_activation_statistics(gen_imgs, model, batch_size=50,
-                                    dims=2048, cuda=False, verbose=False):
+                                    dims=2048, verbose=False):
     """Calculation of the statistics used by the FID.
     Params:
     -- gen_imgs    : gen_imgs, tensor
@@ -186,7 +187,6 @@ def calculate_activation_statistics(gen_imgs, model, batch_size=50,
                      batch size batch_size. A reasonable batch size
                      depends on the hardware.
     -- dims        : Dimensionality of features returned by Inception
-    -- cuda        : If set to True, use GPU
     -- verbose     : If set to True and parameter out_step is given, the
                      number of calculated batches is reported.
     Returns:
@@ -195,13 +195,13 @@ def calculate_activation_statistics(gen_imgs, model, batch_size=50,
     -- sigma : The covariance matrix of the activations of the pool_3 layer of
                the inception model.
     """
-    act = get_activations(gen_imgs, model, batch_size, dims, cuda, verbose)
+    act = get_activations(gen_imgs, model, batch_size, dims, verbose)
     mu = torch.mean(act, dim=0)
     sigma = torch_cov(act, rowvar=False)
     return mu, sigma
 
 
-def _compute_statistics_of_path(path, model, batch_size, dims, cuda):
+def _compute_statistics_of_path(path, model, batch_size, dims):
     if isinstance(path, str):
         assert path.endswith('.npz')
         f = np.load(path)
@@ -214,18 +214,17 @@ def _compute_statistics_of_path(path, model, batch_size, dims, cuda):
         # a tensor
         gen_imgs = path
         m, s = calculate_activation_statistics(gen_imgs, model, batch_size,
-                                               dims, cuda)
+                                               dims)
 
     return m, s
 
 
-def calculate_fid_given_paths_torch(gen_imgs, path, require_grad=False, batch_size=50, cuda=True, dims=2048):
+def calculate_fid_given_paths_torch(gen_imgs, path, require_grad=False, batch_size=50, dims=2048):
     """
     Calculates the FID of two paths
     :param gen_imgs: The value range of gen_imgs should be (-1, 1). Just the output of tanh.
     :param path: fid file path. *.npz.
     :param batch_size:
-    :param cuda:
     :param dims:
     :return:
     """
@@ -234,21 +233,19 @@ def calculate_fid_given_paths_torch(gen_imgs, path, require_grad=False, batch_si
 
     assert gen_imgs.shape[0] >= dims, f'gen_imgs size: {gen_imgs.shape}'  # or will lead to nan
 
-    with _get_no_grad_ctx_mgr(require_grad=require_grad):
+    with torch.no_grad():
 
         block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[dims]
 
-        model = InceptionV3([block_idx])
-        if cuda:
-            model.cuda()
+        model = InceptionV3([block_idx]).to(device)
 
         m1, s1 = _compute_statistics_of_path(gen_imgs, model, batch_size,
-                                             dims, cuda)
+                                             dims)
         # print(f'generated stat: {m1}, {s1}')
         m2, s2 = _compute_statistics_of_path(path, model, batch_size,
-                                             dims, cuda)
+                                             dims)
         # print(f'GT stat: {m2}, {s2}')
-        fid_value = torch_calculate_frechet_distance(m1.to("cuda:0"), s1.to("cuda:0"), torch.tensor(m2).float().cuda().to("cuda:0"),
-                                                     torch.tensor(s2).float().cuda().to("cuda:0"))
+        fid_value = torch_calculate_frechet_distance(m1.to(device), s1.to(device), torch.tensor(m2).float().to(device),
+                                                     torch.tensor(s2).float().to(device))
 
     return fid_value
