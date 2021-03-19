@@ -25,10 +25,13 @@ limitations under the License.
 """
 
 import os
+from pathlib import Path
+import pdb
 
 import numpy as np
 import torch
 from torch.nn.functional import adaptive_avg_pool2d
+from tqdm.auto import tqdm
 
 from utils.inception import InceptionV3
 from utils.utils import check_gpu
@@ -85,7 +88,7 @@ def torch_cov(m, rowvar=False):
     mt = m.t()  # if complex: mt = m.t().conj()
     return fact * m.matmul(mt).squeeze()
 
-
+# TODO: Fix batch size issue
 def get_activations(gen_imgs, model, batch_size=50, dims=2048,
                     verbose=False):
     """Calculates the activations of the pool_3 layer for all images.
@@ -107,9 +110,8 @@ def get_activations(gen_imgs, model, batch_size=50, dims=2048,
     """
     model.eval()
 
-    if gen_imgs.shape[0] % batch_size != 0:
-        print(('Warning: number of images is not a multiple of the '
-               'batch size. Some samples are going to be ignored.'))
+    assert gen_imgs.shape[0] % batch_size == 0, ("number of images " 
+        "is not a multiple of the batch size.Some samples will be ignored.")
     if batch_size > gen_imgs.shape[0]:
         print(('Warning: batch size is bigger than the data size. '
                'Setting batch size to data size'))
@@ -120,23 +122,23 @@ def get_activations(gen_imgs, model, batch_size=50, dims=2048,
     # normalize
     gen_imgs = (gen_imgs + 1.0) / 2.0
     pred_arr = []
-    for i in tqdm(range(n_batches)):
-        if verbose:
-            print('\rPropagating batch %d/%d' % (i + 1, n_batches),
-                  end='', flush=True)
-        start = i * batch_size
-        end = start + batch_size
+    with torch.no_grad():
+        for i in tqdm(range(n_batches)):
+            if verbose:
+                print('\rPropagating batch %d/%d' % (i + 1, n_batches),
+                    end='', flush=True)
+            start = i * batch_size
+            end = start + batch_size
 
-        images = gen_imgs[start: end]
-        model.to(device)
-        pred = model(images.to(device))[0]
+            images = gen_imgs[start: end]
+            pred = model(images.to(device))[0]
 
-        # If model output is not scalar, apply global spatial average pooling.
-        # This happens if you choose a dimensionality not equal 2048.
-        if pred.shape[2] != 1 or pred.shape[3] != 1:
-            pred = adaptive_avg_pool2d(pred, output_size=(1, 1))
+            # If model output is not scalar, apply global spatial average pooling.
+            # This happens if you choose a dimensionality not equal 2048.
+            if pred.shape[2] != 1 or pred.shape[3] != 1:
+                pred = adaptive_avg_pool2d(pred, output_size=(1, 1))
 
-        pred_arr += [pred.view(batch_size, -1)]
+            pred_arr += [pred.view(batch_size, -1)]
 
     if verbose:
         print('done')
@@ -178,7 +180,7 @@ def torch_calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
 
 
 def calculate_activation_statistics(gen_imgs, model, batch_size=50,
-                                    dims=2048, verbose=False):
+                                    dims=2048, verbose=True):
     """Calculation of the statistics used by the FID.
     Params:
     -- gen_imgs    : gen_imgs, tensor
@@ -202,8 +204,8 @@ def calculate_activation_statistics(gen_imgs, model, batch_size=50,
 
 
 def _compute_statistics_of_path(path, model, batch_size, dims):
-    if isinstance(path, str):
-        assert path.endswith('.npz')
+    if isinstance(path, (str, Path)):
+        assert str(path).endswith('.npz')
         f = np.load(path)
         if 'mean' in f:
             m, s = f['mean'][:], f['cov'][:]
@@ -219,7 +221,7 @@ def _compute_statistics_of_path(path, model, batch_size, dims):
     return m, s
 
 
-def calculate_fid_given_paths_torch(gen_imgs, path, require_grad=False, batch_size=50, dims=2048):
+def calculate_fid_given_paths_torch(gen_imgs, path, batch_size=50, dims=2048):
     """
     Calculates the FID of two paths
     :param gen_imgs: The value range of gen_imgs should be (-1, 1). Just the output of tanh.
