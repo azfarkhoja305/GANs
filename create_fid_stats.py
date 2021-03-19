@@ -42,7 +42,7 @@ def main(args):
 
     save_path = Path(args.save)
     save_path.mkdir(parents=True, exist_ok=True)
-    np.savez(save_path/f'{args.dataset}_{t_or_v}_fid_stats')
+    np.savez(save_path/f'{args.dataset}_{t_or_v}_fid_stats', mu=mu, sigma=sigma)
 
 
 if __name__=='__main__':

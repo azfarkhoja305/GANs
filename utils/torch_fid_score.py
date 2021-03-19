@@ -26,6 +26,7 @@ limitations under the License.
 
 import os
 from pathlib import Path
+import math
 import pdb
 
 import numpy as np
@@ -241,6 +242,8 @@ def calculate_fid_given_paths_torch(gen_imgs, path, batch_size=50, dims=2048):
 
         model = InceptionV3([block_idx]).to(device)
 
+        batch_size = 50 if str(device) == 'cpu' else 100
+
         m1, s1 = _compute_statistics_of_path(gen_imgs, model, batch_size,
                                              dims)
         # print(f'generated stat: {m1}, {s1}')
@@ -250,4 +253,23 @@ def calculate_fid_given_paths_torch(gen_imgs, path, batch_size=50, dims=2048):
         fid_value = torch_calculate_frechet_distance(m1.to(device), s1.to(device), torch.tensor(m2).float().to(device),
                                                      torch.tensor(s2).float().to(device))
 
-    return fid_value
+    return fid_value.cpu().item()
+
+
+def get_fid(gen_net, latent_dim, n_imgs, batch_sz, fid_stat_path):
+    gen_net.eval()
+    with torch.no_grad():
+        eval_iter = math.ceil(n_imgs / batch_sz)
+        img_list = []
+        for i in tqdm(range(eval_iter), desc='sample images'):
+            b_sz = min(batch_sz, n_imgs-i*batch_sz)
+            z = torch.randn(b_sz, latent_dim, 1,1, device=device)
+            gen_imgs = gen_net(z)
+            if isinstance(gen_imgs, tuple):
+                gen_imgs = gen_imgs[0]
+            img_list += [gen_imgs]
+
+        img_list = torch.cat(img_list, 0)
+        fid_score = calculate_fid_given_paths_torch(img_list, fid_stat_path)
+
+    return fid_score
