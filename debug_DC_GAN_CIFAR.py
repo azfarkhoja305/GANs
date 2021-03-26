@@ -16,8 +16,10 @@ import torchvision.utils as vutils
 from torchsummary import summary
 from datasets import ImageDataset
 from utils.utils import check_gpu, display_images
-from generator import Generator
-from ViT_discriminator import Discriminator
+from models.generator import Generator
+
+# from models.discriminator import Discriminator
+from models.ViT_discriminator import Discriminator
 from types import SimpleNamespace
 
 device = check_gpu()

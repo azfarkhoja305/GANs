@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import math
-from ViT_helper import DropPath, to_2tuple, trunc_normal_
+from models.ViT_helper import DropPath, to_2tuple, trunc_normal_
 
 
 def gelu(x):
