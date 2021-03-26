@@ -31,7 +31,7 @@ Gen = Generator().to(device)
 summary(Gen, (128, 1))
 
 # Dis = Discriminator().to(device)
-args = SimpleNamespace(**{"d_depth": 7, "df_dim": 384, "img_size": 48, "patch_size": 4})
+args = SimpleNamespace(**{"d_depth": 7, "df_dim": 384, "img_size": 32, "patch_size": 8})
 Dis = Discriminator(args).to(device)
 summary(Dis, (3, 32, 32))
 
