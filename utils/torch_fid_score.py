@@ -263,7 +263,7 @@ def get_fid(gen_net, latent_dim, n_imgs, batch_sz, fid_stat_path):
         img_list = []
         for i in tqdm(range(eval_iter), desc='sample images'):
             b_sz = min(batch_sz, n_imgs-i*batch_sz)
-            z = torch.randn(b_sz, latent_dim, 1,1, device=device)
+            z = torch.randn(b_sz, latent_dim, device=device)
             gen_imgs = gen_net(z)
             if isinstance(gen_imgs, tuple):
                 gen_imgs = gen_imgs[0]

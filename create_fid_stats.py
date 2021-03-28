@@ -17,16 +17,24 @@ def make_argparse():
     return parser.parse_args()
 
 def main(args):
-    device = check_gpu()
     dataset =  ImageDataset(args.dataset, batch_sz = 256)
-
-    if args.train == 'True':
+    # pdb.set_trace()
+    if args.train.lower() == 'true':
         t_or_v = 'train'
         loader = dataset.train_loader
-    elif args.train == 'False':
+    elif args.train.lower() == 'false':
         t_or_v='valid'
         loader = dataset.valid_loader
     else:    raise Exception('args.train not understood')
+
+    save_path = Path(args.save)
+    save_path.mkdir(parents=True, exist_ok=True)
+    file_name = f'{args.dataset}_{t_or_v}_fid_stats'
+    if (save_path/(file_name + '.npz')).exists():
+        print(f"{(save_path/(file_name + '.npz'))} exists. Exiting !!!")
+        return
+
+    device = check_gpu()
 
     all_images = [imgs for imgs,_ in loader]
     all_images = torch.cat(all_images, 0)
@@ -40,9 +48,7 @@ def main(args):
     mu, sigma = calculate_activation_statistics(all_images, model, batch_size=bs)
     mu, sigma = mu.cpu().numpy(), sigma.cpu().numpy()
 
-    save_path = Path(args.save)
-    save_path.mkdir(parents=True, exist_ok=True)
-    np.savez(save_path/f'{args.dataset}_{t_or_v}_fid_stats', mu=mu, sigma=sigma)
+    np.savez(save_path/file_name, mu=mu, sigma=sigma)
 
 
 if __name__=='__main__':
