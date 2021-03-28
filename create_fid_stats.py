@@ -48,8 +48,6 @@ def main(args):
     mu, sigma = calculate_activation_statistics(all_images, model, batch_size=bs)
     mu, sigma = mu.cpu().numpy(), sigma.cpu().numpy()
 
-    # save_path = Path(args.save)
-    # save_path.mkdir(parents=True, exist_ok=True)
     np.savez(save_path/file_name, mu=mu, sigma=sigma)
 
 
