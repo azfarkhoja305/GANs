@@ -31,7 +31,7 @@ def main(args):
     save_path.mkdir(parents=True, exist_ok=True)
     file_name = f'{args.dataset}_{t_or_v}_fid_stats'
     if (save_path/(file_name + '.npz')).exists():
-        print(f"{(save_path/(file_name + '.npz'))} exits. Exiting !!!")
+        print(f"{(save_path/(file_name + '.npz'))} exists. Exiting !!!")
         return
 
     device = check_gpu()
