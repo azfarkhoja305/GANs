@@ -66,7 +66,7 @@ class Attention(nn.Module):
         assert dims % num_heads == 0, (f'Dims for Attention: {dims}, not divisible '
             f'by num_heads: {num_heads}')
         head_dims = dims // num_heads
-        self.scale = qk_scale or math.sqrt(head_dims)
+        self.scale = qk_scale or head_dims ** -0.5
         
         self.qkv = nn.Linear(dims, dims*3, bias=qkv_bias)
         self.attn_drop = nn.Dropout(attn_drop)
