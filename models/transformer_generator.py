@@ -15,6 +15,7 @@ class TGenerator(nn.Module):
         # fix depth = 3 for now since it requires changes in upsample 
         assert isinstance(depth, list) and len(depth) == 3
 
+        self.bottom_width, self.embed_chs = bottom_width, embed_chs
         self.in_layer = LinearReshape(in_dims=latent_dims, out_dims=embed_chs*bottom_width**2, 
                                       width=bottom_width, embed_chs=embed_chs)
         self.pos_embed = nn.ParameterList([
