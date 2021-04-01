@@ -18,6 +18,8 @@ class TGenerator(nn.Module):
         self.bottom_width, self.embed_chs = bottom_width, embed_chs
         self.in_layer = LinearReshape(in_dims=latent_dims, out_dims=embed_chs*bottom_width**2, 
                                       width=bottom_width, embed_chs=embed_chs)
+        self.ct_in_layer = LinearReshape(in_dims=3, out_dims=embed_chs//4,
+                                         width=bottom_width*2, embed_chs=embed_chs//4)
         self.pos_embed = nn.ParameterList([
                           nn.Parameter(torch.zeros(1, bottom_width**2, embed_chs)),
                           nn.Parameter(torch.zeros(1, (bottom_width*2)**2, embed_chs//4)),
@@ -54,5 +56,18 @@ class TGenerator(nn.Module):
             x = self.pixel_upsample[i](x) + self.pos_embed[i+1]
             for blk in blocks:
                 x = blk(x,epoch)
+        x = self.to_rgb(x)
+        return x.contiguous()
+
+    def super_resolution(self, x):
+        """ Start from the 2nd stage of the Generator for now. """
+        # Push channels to last dimention and project
+        x = self.ct_in_layer(x.permute(0,2,3,1)) 
+        for i, blocks in enumerate(self.upsample_block):
+            if i == 0:    # skip upsample
+                x = x + self.pos_embed[i+1]
+            else:    x = self.pixel_upsample[i](x) + self.pos_embed[i+1]
+            for blk in blocks:
+                x = blk(x)
         x = self.to_rgb(x)
         return x.contiguous()
