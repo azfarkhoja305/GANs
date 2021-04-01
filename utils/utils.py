@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import torchvision.utils as vutils
 
@@ -8,6 +9,30 @@ import torchvision.utils as vutils
 def check_gpu():
     if torch.cuda.is_available():    return torch.device('cuda')
     return torch.device('cpu')
+
+def reduce_resolution(image_batch):
+    """ Function to reduce the resolution of an image by half. """
+    return F.interpolate(image_batch, scale_factor=0.5, mode='bilinear',
+                          align_corners=False, recompute_scale_factor=False)
+
+class AvgLossMetric():
+    """ Average loss statistics over an entire epoch """
+    def __init__(self):
+        self.loss = 0
+        self.num = 0
+    def update_state(self,loss,num):
+        assert num > 0, f'num elements = {num}, needs to be greater than zero'
+        # since incoming loss is averaged
+        self.loss += loss * num
+        self.num +=num
+    def result(self):
+        assert self.num > 0, f'num = {self.num}, needs to be greater than zero'
+        # avg loss for one epoch = total loss / total number of samples
+        return self.loss / self.num
+    def reset_state(self):
+        self.loss = 0
+        self.num = 0
+
 
 def display_images(image_holder, ax=None, title=None, nrow=8):
     """ 
