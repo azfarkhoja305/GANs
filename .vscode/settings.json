@@ -2,5 +2,8 @@
     "python.pythonPath": "/home/alex/anaconda3/bin/python",
     "python.linting.pylintArgs": [
         "--generated-members=numpy.* ,torch.*"
-        ]
+    ],
+    "[json]": {
+        "editor.formatOnSave": false
+    }
 }
