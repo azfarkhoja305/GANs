@@ -22,6 +22,8 @@ from models.generator import Generator
 from models.ViT_discriminator import Discriminator
 from types import SimpleNamespace
 
+from utils import loss
+
 device = check_gpu()
 print(f"Using device: {device}")
 
@@ -57,38 +59,32 @@ num_epochs = 50
 for epoch in range(num_epochs):
     for i, data in enumerate(dataset.train_loader):
 
-        ############################
-        # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
-        ###########################
         ## Train with all-real batch
         Dis.zero_grad()
         # Format batch
         real = data[0].to(device)
         b_size = real.size(0)
-        label = torch.full((b_size,), real_label, dtype=torch.float, device=device)
+        real_validity = torch.full(
+            (b_size,), real_label, dtype=torch.float, device=device
+        )
         # Forward pass real batch through D
-        output = Dis(real).view(-1)
-        # Calculate loss on all-real batch
-        errD_real = loss_fn(output, label)
-        # Calculate gradients for D in backward pass
-        errD_real.backward()
-        D_x = torch.sigmoid(output).mean().item()
+        output_real = Dis(real).view(-1)
 
         ## Train with all-fake batch
         # Generate batch of latent vectors
         noise = torch.randn(b_size, 128, 1, 1, device=device)
         # Generate fake image batch with G
         fake = Gen(noise)
-        label = torch.full_like(label, fake_label)
+        fake_validity = torch.full_like(real_validity, fake_label)
         # Classify all fake batch with D
-        output = Dis(fake.detach()).view(-1)
-        # Calculate D's loss on the all-fake batch
-        errD_fake = loss_fn(output, label)
-        # Calculate the gradients for this batch
-        errD_fake.backward()
-        D_G_z1 = torch.sigmoid(output).mean().item()
-        # Add the gradients from the all-real and all-fake batches
-        errD = errD_real + errD_fake
+        output_fake = Dis(fake.detach()).view(-1)
+
+        errD = loss.wgangp_eps_loss(Dis, real, fake, 1.0, output_real, output_fake)
+
+        errD.backward()
+
+        torch.nn.utils.clip_grad_norm_(Dis.parameters(), 5.0)
+
         # Update D
         optD.step()
 
@@ -97,7 +93,7 @@ for epoch in range(num_epochs):
         ###########################
         Gen.zero_grad()
         label = torch.full_like(
-            label, real_label
+            real_validity, real_label
         )  # fake labels are real for generator cost
         # Since we just updated D, perform another forward pass of all-fake batch through D
         output = Dis(fake).view(-1)
@@ -109,15 +105,15 @@ for epoch in range(num_epochs):
         # Update G
         optG.step()
 
-        #         # Output training stats
-        #         if (i+1) %100 == 0:
-        #             print('[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(z)): %.4f / %.4f'
-        # #                 % (epoch, num_epochs, i, len(dataset.train_loader),
-        #                      errD.item(), errG.item(), D_x, D_G_z1, D_G_z2))
-
         # Save Losses for plotting later
         G_losses.append(errG.item())
         D_losses.append(errD.item())
+
+        # # Output training stats
+        # if (i+1) %100 == 0:
+        #     print('[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f'
+        #         % (epoch, num_epochs, i, len(dataset.train_loader),
+        #              errD.item(), errG.item()))
 
         # Check how the generator is doing by saving G's output on fixed_noise
         if (iters % 500 == 0) or (
