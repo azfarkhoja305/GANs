@@ -6,7 +6,7 @@ import torch
 from tqdm.auto import tqdm
 
 from metrics.inception import InceptionV3
-from metrics.fid import calculate_frechet_distance, torch_cov
+from metrics.fid import torch_calculate_frechet_distance, torch_cov
 from utils.utils import check_gpu
 
 device = check_gpu()
@@ -93,7 +93,7 @@ def get_inception_score_and_fid(
     m2 = torch.tensor(m2).to(m1.dtype).to(device)
     s2 = torch.tensor(s2).to(s1.dtype).to(device)
 
-    fid_score = calculate_frechet_distance(m1, s1, m2, s2)
+    fid_score = torch_calculate_frechet_distance(m1, s1, m2, s2)
 
     del fid_acts, is_probs, scores, model
     return is_score, fid_score
