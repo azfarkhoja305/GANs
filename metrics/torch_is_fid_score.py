@@ -1,44 +1,66 @@
 # Modified from 
 # 1) https://github.com/w86763777/pytorch-inception-score-fid/blob/master/score/both.py
 
+import math
+
+from tqdm.auto import tqdm
 import numpy as np
 import torch
-from tqdm.auto import tqdm
 
-from metrics.inception import InceptionV3
-from metrics.fid import torch_calculate_frechet_distance, torch_cov
+from metrics.torch_inception import InceptionV3
+from metrics.torch_fid_utils import torch_calculate_frechet_distance, torch_cov
 from utils.utils import check_gpu
 
 device = check_gpu()
 
-def get_inception_score_and_fid(
-        images,
-        fid_stats_path,
-        splits=10,
-        batch_size=50,
-        verbose=True):
+def is_fid_from_generator(generator, 
+                          latent_dims, 
+                          num_imgs,
+                          batch_sz,
+                          fid_stat_path):
+    generator.eval()
+    with torch.no_grad():
+        eval_iter = math.ceil(num_imgs / batch_sz)
+        img_list = []
+        for i in tqdm(range(eval_iter), leave=False, desc='generating images'):
+            b_sz = min(batch_sz, num_imgs-i*batch_sz)
+            z = torch.randn(b_sz, latent_dims, device=device)
+            gen_imgs = generator(z)
+            if isinstance(gen_imgs, tuple):
+                gen_imgs = gen_imgs[0]
+            img_list += [gen_imgs]
+
+        img_list = torch.cat(img_list, 0)
+        is_score, fid_score = calc_is_and_fid(img_list,
+                                              fid_stat_path,
+                                              batch_size=max(batch_sz, 128))
+        return is_score, fid_score
+    
+
+def calc_is_and_fid(images,
+                    fid_stats_path,
+                    splits=10,
+                    batch_size=50,
+                    in_zero_one=False,
+                    verbose=True):
     """Calculate Inception Score and FID.
     For each image, only a forward propagation is required to
     calculating features for FID and Inception Score.
     Args:
-        images: List of tensor or torch.utils.data.Dataloader. The return image
-                must be float tensor of range [0, 1].
+        images: tensor of shape (num_images x 3 x H x W). 
+                Expected Range [0,1] or [-1,1] with `in_zero_one` set.
         fid_stats_path: str, Path to pre-calculated statistic
         splits: The number of bins of Inception Score. Default is 10.
-        batch_size: int, The batch size for calculating activations. If
-                    `images` is torch.utils.data.Dataloader, this arguments
-                    does not work.
-        use_torch: bool. The default value is False and the backend is same as
-                   official implementation, i.e., numpy. If use_torch is
-                   enableb, the backend linalg is implemented by torch, the
-                   results are not guaranteed to be consistent with numpy, but
-                   the speed can be accelerated by GPU.
-        verbose: int. Set verbose to 0 for disabling progress bar. Otherwise,
+        batch_size: int, The batch size for calculating activations.
+        in_zero_one: if `images` are in range [0,1] 
+        verbose: int. Set verbose to False for disabling progress bar. Otherwise,
                  the progress bar is showing when calculating activations.
     Returns:
         inception_score: float tuple, (mean, std)
         fid: float
     """
+    if not in_zero_one:
+        images = (images + 1.0)/2.0
     num_images = len(images)
     block_idx1 = InceptionV3.BLOCK_INDEX_BY_DIM[2048]
     block_idx2 = InceptionV3.BLOCK_INDEX_BY_DIM['prob']
@@ -50,7 +72,7 @@ def get_inception_score_and_fid(
 
     pbar = tqdm(
         total=num_images, dynamic_ncols=True, leave=False,
-        disable=not verbose, desc="get_inception_score_and_fid")
+        disable=not verbose, desc="inception_score_and_fid")
     start = 0
     while start < num_images:
         # get a batch of images from iterator
@@ -67,7 +89,7 @@ def get_inception_score_and_fid(
         start = end
         pbar.update(len(batch_images))
     pbar.close()
-
+    
     # Inception Score
     scores = []
     for i in range(splits):
@@ -96,4 +118,4 @@ def get_inception_score_and_fid(
     fid_score = torch_calculate_frechet_distance(m1, s1, m2, s2)
 
     del fid_acts, is_probs, scores, model
-    return is_score, fid_score
+    return is_score, fid_score.cpu().item()
