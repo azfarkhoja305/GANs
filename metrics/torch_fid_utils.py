@@ -5,7 +5,6 @@
 from tqdm.auto import tqdm
 import torch
 
-
 from utils.utils import check_gpu
 
 device = check_gpu()
@@ -98,7 +97,7 @@ def calc_activation_stats(image_loader, model):
     model.eval()
     activation_list = []
     with torch.no_grad():
-        for image_batch, _ in tqdm(image_loader, desc='Calculating Stats'):
+        for image_batch, _ in tqdm(image_loader, desc='Calculating Stats', leave=False):
             image_batch = (image_batch + 1.0) / 2.0
             pred = model(image_batch.to(device))
             activation_list.append(pred[0].view(-1, 2048))
@@ -106,7 +105,7 @@ def calc_activation_stats(image_loader, model):
     activations = torch.cat(activation_list, dim=0)
     mu = torch.mean(activations, dim=0)
     sigma = torch_cov(activations, rowvar=False)
-    return mu, sigma
+    return mu.cpu(), sigma.cpu()
 
 
 
