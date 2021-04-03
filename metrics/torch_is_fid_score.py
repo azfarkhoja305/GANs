@@ -8,7 +8,7 @@ import numpy as np
 import torch
 
 from metrics.torch_inception import InceptionV3
-from metrics.torch_fid_utils import torch_calculate_frechet_distance, torch_cov
+from metrics.torch_fid_utils import calculate_frechet_distance, torch_cov
 from utils.utils import check_gpu
 
 device = check_gpu()
@@ -112,10 +112,10 @@ def calc_is_and_fid(images,
     f.close()
     m1 = torch.mean(fid_acts, axis=0)
     s1 = torch_cov(fid_acts, rowvar=False)
-    m2 = torch.tensor(m2).to(m1.dtype).to(device)
-    s2 = torch.tensor(s2).to(s1.dtype).to(device)
+    m2 = torch.as_tensor(m2).to(m1.dtype).to(device)
+    s2 = torch.as_tensor(s2).to(s1.dtype).to(device)
 
-    fid_score = torch_calculate_frechet_distance(m1, s1, m2, s2)
+    fid_score = calculate_frechet_distance(m1, s1, m2, s2)
 
     del fid_acts, is_probs, scores, model
     return is_score, fid_score.cpu().item()

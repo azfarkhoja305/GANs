@@ -3,7 +3,7 @@ import functools
 import torch
 import torch.nn as nn
 
-from utils.layers import Block, LinearReshape, PixelUpsample, To_RGB, gelu
+from models.layers import Block, LinearReshape, PixelUpsample, To_RGB, gelu
 from utils.trunc_normal import trunc_normal_
 
 class TGenerator(nn.Module):

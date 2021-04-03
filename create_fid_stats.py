@@ -1,9 +1,7 @@
 import argparse
 from pathlib import Path
-import pdb
 
 import numpy as np
-import torch
 
 
 def make_argparse():
@@ -12,12 +10,16 @@ def make_argparse():
                         help='dataset name')
     parser.add_argument('-t', '--train', required=True, type=str, 
                         help='Set True if train set')
+    parser.add_argument('-b','--batch_size', required=False, type=int,
+                        default=256, help='Batch Size')
     parser.add_argument('-s','--save', required=False, type=str, 
                         default='fid_stats', help='directory for saving stats')
     return parser.parse_args()
 
 def main(args):
-    dataset =  ImageDataset(args.dataset, batch_sz = 256)
+    device = check_gpu()
+    bs = 50 if str(device) == 'cpu' else args.batch_size
+    dataset =  ImageDataset(args.dataset, batch_sz = bs)
     # pdb.set_trace()
     if args.train.lower() == 'true':
         t_or_v = 'train'
@@ -34,28 +36,21 @@ def main(args):
         print(f"{(save_path/(file_name + '.npz'))} exists. Exiting !!!")
         return
 
-    device = check_gpu()
-
-    all_images = [imgs for imgs,_ in loader]
-    all_images = torch.cat(all_images, 0)
-
     block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[2048]
     model = InceptionV3([block_idx]).to(device)
-
-    # len(all_images) needs to be divisble by batch_size to consider entire dataset
-    # TODO: FIX calculate_activation_statistics
-    bs = 50 if str(device) == 'cpu' else 100
-    mu, sigma = calculate_activation_statistics(all_images, model, batch_size=bs)
+    mu, sigma = calc_activation_stats(loader, model)
     mu, sigma = mu.cpu().numpy(), sigma.cpu().numpy()
 
     np.savez(save_path/file_name, mu=mu, sigma=sigma)
 
 
 if __name__=='__main__':
-    from utils.torch_fid_score import calculate_activation_statistics
-    from utils.inception import InceptionV3
-    from utils.utils import check_gpu
+    from metrics.torch_fid_utils import calc_activation_stats
+    from metrics.torch_inception import InceptionV3
+    from utils.utils import check_gpu, set_seed
     from datasets import ImageDataset
+
+    set_seed(seed=123)
 
     args = make_argparse()
     print(args)

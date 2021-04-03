@@ -1,30 +1,10 @@
-#!/usr/bin/env python3
-"""Calculates the Frechet Inception Distance (FID) to evalulate GANs
-The FID metric calculates the distance between two distributions of images.
-Typically, we have summary statistics (mean & covariance matrix) of one
-of these distributions, while the 2nd distribution is given by a GAN.
-When run as a stand-alone program, it compares the distribution of
-images that are stored as PNG/JPEG at a specified location with a
-distribution given by summary statistics (in pickle format).
-The FID is calculated by assuming that X_1 and X_2 are the activations of
-the pool_3 layer of the inception net for generated samples and real world
-samples respectively.
-See --help to see further details.
-Code apapted from https://github.com/bioinf-jku/TTUR to use PyTorch instead
-of Tensorflow
-Copyright 2018 Institute of Bioinformatics, JKU Linz
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-   http://www.apache.org/licenses/LICENSE-2.0
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
+# modified from
+# 1) https://github.com/w86763777/pytorch-inception-score-fid/blob/master/score/fid.py
+# 2) https://github.com/mseitzer/pytorch-fid/blob/master/src/pytorch_fid/fid_score.py
 
+from tqdm.auto import tqdm
 import torch
+
 
 from utils.utils import check_gpu
 
@@ -81,7 +61,7 @@ def torch_cov(m, rowvar=False):
     return fact * m.matmul(mt).squeeze()
 
 
-def torch_calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
+def calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
     """Pytorch implementation of the Frechet Distance.
     Taken from https://github.com/bioinf-jku/TTUR
     The Frechet distance between two multivariate Gaussians X_1 ~ N(mu_1, C_1)
@@ -112,6 +92,22 @@ def torch_calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
     out = (diff.dot(diff) + torch.trace(sigma1) + torch.trace(sigma2)
            - 2 * torch.trace(covmean))
     return out
+
+
+def calc_activation_stats(image_loader, model):
+    model.eval()
+    activation_list = []
+    with torch.no_grad():
+        for image_batch, _ in tqdm(image_loader, desc='Calculating Stats'):
+            image_batch = (image_batch + 1.0) / 2.0
+            pred = model(image_batch.to(device))
+            activation_list.append(pred[0].view(-1, 2048))
+        
+    activations = torch.cat(activation_list, dim=0)
+    mu = torch.mean(activations, dim=0)
+    sigma = torch_cov(activations, rowvar=False)
+    return mu, sigma
+
 
 
 
