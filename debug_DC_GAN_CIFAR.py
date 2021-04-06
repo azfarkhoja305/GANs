@@ -1,38 +1,34 @@
-import os
-import sys
 from pathlib import Path
-import pdb
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import animation, rc
-from tqdm.auto import tqdm
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-import torchvision.datasets as datasets
-import torchvision.transforms as transforms
+from torch import nn
+from torch import optim
+from datasets import ImageDataset
 import torchvision.utils as vutils
 from torchsummary import summary
-from datasets import ImageDataset
 from utils.utils import check_gpu, display_images
-from models.generator import Generator
+from models.transformer_generator import TGenerator
 
 # from models.discriminator import Discriminator
 from models.ViT_discriminator import Discriminator
 from types import SimpleNamespace
 
-from utils import loss
+from utils.loss import wgangp_eps_loss
 
 device = check_gpu()
 print(f"Using device: {device}")
 
-dataset = ImageDataset("cifar_10", batch_sz=256)
+batch_sz = 64
+dataset = ImageDataset("cifar_10", batch_sz=batch_sz)
 
 # display_images(dataset.train_loader, max_idx=256)
 
-Gen = Generator().to(device)
-summary(Gen, (128, 1))
+# Gen = Generator().to(device)
+latent_dims = 1024
+Gen = TGenerator(latent_dims=latent_dims).to(device)
+summary(Gen, (latent_dims,))
 
 # Dis = Discriminator().to(device)
 args = SimpleNamespace(**{"d_depth": 7, "df_dim": 384, "img_size": 32, "patch_size": 8})
@@ -40,7 +36,7 @@ Dis = Discriminator(args).to(device)
 summary(Dis, (3, 32, 32))
 
 loss_fn = nn.BCEWithLogitsLoss()
-fixed_noise = torch.randn(64, 128, device=device)
+fixed_noise = torch.randn(batch_sz, latent_dims, device=device)
 real_label = 1.0
 fake_label = 0.0
 lr, beta1 = 3e-4, 0
@@ -55,7 +51,7 @@ iters = 0
 # Number of training epochs
 num_epochs = 50
 
-# Commented out IPython magic to ensure Python compatibility.
+
 for epoch in range(num_epochs):
     for i, data in enumerate(dataset.train_loader):
 
@@ -72,14 +68,14 @@ for epoch in range(num_epochs):
 
         ## Train with all-fake batch
         # Generate batch of latent vectors
-        noise = torch.randn(b_size, 128, 1, 1, device=device)
+        noise = torch.randn(b_size, latent_dims, device=device)
         # Generate fake image batch with G
         fake = Gen(noise)
         fake_validity = torch.full_like(real_validity, fake_label)
         # Classify all fake batch with D
         output_fake = Dis(fake.detach()).view(-1)
 
-        errD = loss.wgangp_eps_loss(Dis, real, fake, 1.0, output_real, output_fake)
+        errD = wgangp_eps_loss(Dis, real, fake, 1.0, output_real, output_fake)
 
         errD.backward()
 
