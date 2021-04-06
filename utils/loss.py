@@ -1,3 +1,6 @@
+# Implementation from
+# https://github.com/VITA-Group/TransGAN/blob/7e5fa2d0c4d45ed2bf89068f0a9edb61a2a6db33/functions.py
+
 import torch
 import numpy as np
 
