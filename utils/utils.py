@@ -1,3 +1,5 @@
+import random
+
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
@@ -9,6 +11,12 @@ import torchvision.utils as vutils
 def check_gpu():
     if torch.cuda.is_available():    return torch.device('cuda')
     return torch.device('cpu')
+
+def set_seed(seed=123):
+    torch.backends.cudnn.deterministic = True
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
 
 def reduce_resolution(image_batch):
     """ Function to reduce the resolution of an image by half. """

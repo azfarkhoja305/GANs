@@ -1,4 +1,6 @@
-# credit https://github.com/mseitzer/pytorch-fid/blob/master/src/pytorch_fid/inception.py
+# From
+# 1) https://github.com/mseitzer/pytorch-fid/blob/master/src/pytorch_fid/inception.py
+# 2) https://github.com/w86763777/pytorch-inception-score-fid/blob/master/score/inception.py
 
 import torch
 import torch.nn as nn
@@ -24,10 +26,11 @@ class InceptionV3(nn.Module):
 
     # Maps feature dimensionality to their output blocks indices
     BLOCK_INDEX_BY_DIM = {
-        64: 0,  # First max pooling features
-        192: 1,  # Second max pooling featurs
-        768: 2,  # Pre-aux classifier features
-        2048: 3  # Final average pooling features
+        64: 0,      # First max pooling features
+        192: 1,     # Second max pooling featurs
+        768: 2,     # Pre-aux classifier features
+        2048: 3,    # Final average pooling features
+        'prob': 4,  # softmax layer
     }
 
     def __init__(self,
@@ -72,15 +75,16 @@ class InceptionV3(nn.Module):
         self.output_blocks = sorted(output_blocks)
         self.last_needed_block = max(output_blocks)
 
-        assert self.last_needed_block <= 3, \
-            'Last possible output block index is 3'
+        # assert self.last_needed_block <= 3, \
+        #     'Last possible output block index is 3'
 
         self.blocks = nn.ModuleList()
 
         if use_fid_inception:
             inception = fid_inception_v3()
         else:
-            inception = models.inception_v3(pretrained=True)
+            inception = models.inception_v3(
+                pretrained=True, init_weights=False)
 
         # Block 0: input to maxpool1
         block0 = [
@@ -124,6 +128,10 @@ class InceptionV3(nn.Module):
             ]
             self.blocks.append(nn.Sequential(*block3))
 
+        if self.last_needed_block >= 4:
+            self.fc = inception.fc
+            self.fc.bias = None
+
         for param in self.parameters():
             param.requires_grad = requires_grad
 
@@ -159,6 +167,15 @@ class InceptionV3(nn.Module):
             if idx == self.last_needed_block:
                 break
 
+        if self.last_needed_block >= 4:
+            x = F.dropout(x, training=self.training)
+            # N x 2048 x 1 x 1
+            x = torch.flatten(x, 1)
+            # N x 2048
+            x = self.fc(x)
+            x = F.softmax(x, dim=1)
+            outp.append(x)
+
         return outp
 
 
@@ -190,7 +207,6 @@ def fid_inception_v3():
 
 class FIDInceptionA(models.inception.InceptionA):
     """InceptionA block patched for FID computation"""
-
     def __init__(self, in_channels, pool_features):
         super(FIDInceptionA, self).__init__(in_channels, pool_features)
 
@@ -216,7 +232,6 @@ class FIDInceptionA(models.inception.InceptionA):
 
 class FIDInceptionC(models.inception.InceptionC):
     """InceptionC block patched for FID computation"""
-
     def __init__(self, in_channels, channels_7x7):
         super(FIDInceptionC, self).__init__(in_channels, channels_7x7)
 
@@ -245,7 +260,6 @@ class FIDInceptionC(models.inception.InceptionC):
 
 class FIDInceptionE_1(models.inception.InceptionE):
     """First InceptionE block patched for FID computation"""
-
     def __init__(self, in_channels):
         super(FIDInceptionE_1, self).__init__(in_channels)
 
@@ -279,7 +293,6 @@ class FIDInceptionE_1(models.inception.InceptionE):
 
 class FIDInceptionE_2(models.inception.InceptionE):
     """Second InceptionE block patched for FID computation"""
-
     def __init__(self, in_channels):
         super(FIDInceptionE_2, self).__init__(in_channels)
 
