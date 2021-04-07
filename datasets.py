@@ -35,10 +35,10 @@ class ImageDataset:
             train_dataset = datasets.CIFAR10(root='data/cifar_10', train=True,
                                              transform=transforms.Compose(tfms), download=True)
             self.train_loader = DataLoader(train_dataset, batch_size=batch_sz, shuffle=True, 
-                                           num_workers=num_workers)
+                                           num_workers=num_workers, drop_last=True)
             valid_dataset = datasets.CIFAR10(root='data/cifar_10', train=False, 
                                              transform=transforms.Compose(valid_tfms))
             self.valid_loader = DataLoader(valid_dataset, batch_size=batch_sz, shuffle=False, 
-                                           num_workers=num_workers)
+                                           num_workers=num_workers, drop_last=True)
         else:
             raise NotImplementedError(f'Unkown dataset: {dataset}')
