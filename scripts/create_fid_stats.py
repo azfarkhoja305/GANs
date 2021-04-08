@@ -48,7 +48,7 @@ if __name__=='__main__':
     from metrics.torch_fid_utils import calc_activation_stats
     from metrics.torch_inception import InceptionV3
     from utils.utils import check_gpu, set_seed
-    from datasets import ImageDataset
+    from utils.datasets import ImageDataset
 
     set_seed(seed=123)
 
