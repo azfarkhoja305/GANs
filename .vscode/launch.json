@@ -9,6 +9,10 @@
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/scripts/debug_DC_GAN_CIFAR.py",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
             "console": "integratedTerminal"
         }
     ]

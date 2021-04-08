@@ -1,129 +1,133 @@
-from pathlib import Path
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
+from pathlib import Path
 from matplotlib import animation, rc
 import torch
-from torch import nn
-from torch import optim
-from datasets import ImageDataset
-import torchvision.utils as vutils
-from torchsummary import summary
-from utils.utils import check_gpu, display_images
-from models.transformer_generator import TGenerator
+import torch.optim as optim
 
-# from models.discriminator import Discriminator
-from models.ViT_discriminator import Discriminator
 from types import SimpleNamespace
 
+Path.ls = lambda x: list(x.iterdir())
+if Path("./GANs").exists():
+    sys.path.insert(0, "./GANs")
+
+from models.transformer_generator import TGenerator
+from models.ViT_discriminator import Discriminator
+from utils.utils import check_gpu, display_images
+from utils.checkpoint import Checkpoint
 from utils.loss import wgangp_eps_loss
+from utils.datasets import ImageDataset
+from metrics.torch_is_fid_score import is_fid_from_generator
+
+gdrive = "/mnt/c/Google Drive/"
+
+# Create a required checkpoint instance.
+# If does not exists, Checkpoint class will create one.
+ckp_folder = gdrive + "temporary_checkpoint"
 
 device = check_gpu()
 print(f"Using device: {device}")
 
-batch_sz = 64
-dataset = ImageDataset("cifar_10", batch_sz=batch_sz)
+"""# Training"""
 
-# display_images(dataset.train_loader, max_idx=256)
-
-# Gen = Generator().to(device)
+gen_batch_sz = 64
+dis_batch_sz = 32
 latent_dims = 1024
-Gen = TGenerator(latent_dims=latent_dims).to(device)
-summary(Gen, (latent_dims,))
+lr, beta1, beta2 = 1e-4, 0, 0.999
+num_epochs = 20
 
-# Dis = Discriminator().to(device)
+dataset = ImageDataset("cifar_10", batch_sz=dis_batch_sz, num_workers=2)
+# display_images(dataset.train_loader)
+
+Gen = TGenerator(latent_dims=latent_dims).to(device)
+fixed_z = torch.randn(gen_batch_sz, latent_dims, device=device)
+# summary(Gen,(latent_dims,))
+
 args = SimpleNamespace(**{"d_depth": 7, "df_dim": 384, "img_size": 32, "patch_size": 8})
 Dis = Discriminator(args).to(device)
-summary(Dis, (3, 32, 32))
+# summary(Dis,(3,32,32,))
 
-loss_fn = nn.BCEWithLogitsLoss()
-fixed_noise = torch.randn(batch_sz, latent_dims, device=device)
-real_label = 1.0
-fake_label = 0.0
-lr, beta1 = 3e-4, 0
-optG = optim.AdamW(Gen.parameters(), lr=lr, betas=(beta1, 0.999))
-optD = optim.AdamW(Dis.parameters(), lr=lr, betas=(beta1, 0.999))
+optG = optim.AdamW(Gen.parameters(), lr=lr, betas=(beta1, beta2))
+optD = optim.AdamW(Dis.parameters(), lr=lr, betas=(beta1, beta2))
 
 img_list = []
 G_losses = []
 D_losses = []
+loss_logs = {"gen_loss": [], "dis_loss": []}
 iters = 0
 
-# Number of training epochs
-num_epochs = 50
+ckp_class = Checkpoint(ckp_folder, max_epochs=num_epochs, num_ckps=5, start_after=0.1)
 
+# check if any existing checkpoint exists, none found hence start_epoch is 0.
+# Optimizer states also get saved
+Gen, Dis, optG, optD, start_epoch, old_logs = ckp_class.check_if_exists(
+    Gen, Dis, optG, optD
+)
 
-for epoch in range(num_epochs):
+loss_logs = old_logs or loss_logs
+print(start_epoch)  # , loss_logs
+
+# Commented out IPython magic to ensure Python compatibility.
+for epoch in range(start_epoch, num_epochs + 1):
     for i, data in enumerate(dataset.train_loader):
+
+        ###########################
+        # (1) Update Dis network
+        ###########################
 
         ## Train with all-real batch
         Dis.zero_grad()
-        # Format batch
         real = data[0].to(device)
-        b_size = real.size(0)
-        real_validity = torch.full(
-            (b_size,), real_label, dtype=torch.float, device=device
-        )
-        # Forward pass real batch through D
         output_real = Dis(real).view(-1)
 
         ## Train with all-fake batch
-        # Generate batch of latent vectors
-        noise = torch.randn(b_size, latent_dims, device=device)
-        # Generate fake image batch with G
-        fake = Gen(noise)
-        fake_validity = torch.full_like(real_validity, fake_label)
-        # Classify all fake batch with D
-        output_fake = Dis(fake.detach()).view(-1)
+        dis_z = torch.randn(dis_batch_sz, latent_dims, device=device)
+        fake_1 = Gen(dis_z).detach()
+        output_fake_1 = Dis(fake_1).view(-1)
 
-        errD = wgangp_eps_loss(Dis, real, fake, 1.0, output_real, output_fake)
-
+        ## Compute loss and backpropagate
+        errD = wgangp_eps_loss(
+            Dis, real, fake_1, 1.0, output_real, output_fake_1, use_cpu=True
+        )
         errD.backward()
-
         torch.nn.utils.clip_grad_norm_(Dis.parameters(), 5.0)
-
-        # Update D
         optD.step()
 
-        ############################
-        # (2) Update G network: maximize log(D(G(z)))
         ###########################
+        # (2) Update Gen network
+        ###########################
+
         Gen.zero_grad()
-        label = torch.full_like(
-            real_validity, real_label
-        )  # fake labels are real for generator cost
-        # Since we just updated D, perform another forward pass of all-fake batch through D
-        output = Dis(fake).view(-1)
-        # Calculate G's loss based on this output
-        errG = loss_fn(output, label)
-        # Calculate gradients for G
+        gen_z = torch.randn(gen_batch_sz, latent_dims, device=device)
+        fake_2 = Gen(gen_z)
+        output_fake_2 = Dis(fake_2).view(-1)
+        errG = -torch.mean(output_fake_2)
         errG.backward()
-        D_G_z2 = torch.sigmoid(output).mean().item()
-        # Update G
+        torch.nn.utils.clip_grad_norm_(Gen.parameters(), 5.0)
         optG.step()
+
+        ###########################
+        # (3) Output
+        ###########################
 
         # Save Losses for plotting later
         G_losses.append(errG.item())
         D_losses.append(errD.item())
 
-        # # Output training stats
-        # if (i+1) %100 == 0:
-        #     print('[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f'
-        #         % (epoch, num_epochs, i, len(dataset.train_loader),
-        #              errD.item(), errG.item()))
-
-        # Check how the generator is doing by saving G's output on fixed_noise
-        if (iters % 500 == 0) or (
-            (epoch == num_epochs - 1) and (i == len(dataset.train_loader) - 1)
-        ):
-            with torch.no_grad():
-                fake = Gen(fixed_noise).detach().cpu()
-            img_list.append(vutils.make_grid(fake, padding=2, normalize=True))
-
         iters += 1
 
+    loss_logs["gen_loss"].append(errG.item())  # TODO: mean loss per epoch
+    loss_logs["dis_loss"].append(errD.item())
+
+    # Checkpoint
+    ckp_class.at_epoch_end(Gen, Dis, optG, optD, epoch=epoch, loss_logs=loss_logs)
+
+"""# Analysis"""
+
 _, axs = plt.subplots(1, 2, figsize=(15, 15))
-display_images(dataset.train_loader, ax=axs[0], max_idx=256)
-display_images(img_list, ax=axs[1], max_idx=256)
+display_images(dataset.train_loader, ax=axs[0])
+display_images(img_list, ax=axs[1])
 plt.tight_layout()
 
 plt.figure(figsize=(10, 5))
@@ -132,20 +136,20 @@ plt.plot(G_losses, label="G")
 plt.plot(D_losses, label="D")
 plt.xlabel("iterations")
 plt.ylabel("Loss")
+plt.ylim([-10, 10])
 plt.legend()
 plt.show()
 
 """Calculating FID Score"""
 
-from utils.torch_fid_score import get_fid
-
 stat_path = Path("fid_stats/cifar_10_valid_fid_stats.npz")
-score = get_fid(Gen, 128, 10000, 256, stat_path)
-print(f"\nFID score: {score}")
+inception_score, fid = is_fid_from_generator(
+    generator=Gen,
+    latent_dims=latent_dims,
+    num_imgs=10000,
+    batch_sz=256,
+    fid_stat_path=stat_path,
+)
 
-rc("animation", html="jshtml")
-fig = plt.figure(figsize=(8, 8))
-plt.axis("off")
-ims = [[plt.imshow(np.transpose(i, (1, 2, 0)), animated=True)] for i in img_list]
-ani = animation.ArtistAnimation(fig, ims, interval=1000, repeat_delay=1000, blit=True)
-ani
+print(f"\nFID score: {fid}")
+print(f"\nIS: {inception_score}")
