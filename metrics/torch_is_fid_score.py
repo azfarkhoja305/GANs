@@ -18,6 +18,9 @@ def is_fid_from_generator(generator,
                           num_imgs,
                           batch_sz,
                           fid_stat_path):
+    # Randomly generate the same set of z vectors each time
+    torch.manual_seed(42)
+    
     generator.eval()
     with torch.no_grad():
         eval_iter = math.ceil(num_imgs / batch_sz)
