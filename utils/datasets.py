@@ -5,7 +5,7 @@ import torchvision.transforms as transforms
 
 class ImageDataset:
     def __init__(self, dataset = 'cifar_10', batch_sz=256, tfms=None, 
-                resize=None, num_workers=2):
+                resize=None, num_workers=2, drop_last=False):
 
         """ Loads the dataset with transforms and sets both train and valid dataloader.
         
@@ -35,10 +35,10 @@ class ImageDataset:
             train_dataset = datasets.CIFAR10(root='data/cifar_10', train=True,
                                              transform=transforms.Compose(tfms), download=True)
             self.train_loader = DataLoader(train_dataset, batch_size=batch_sz, shuffle=True, 
-                                           num_workers=num_workers, drop_last=True)
+                                           num_workers=num_workers, drop_last=drop_last)
             valid_dataset = datasets.CIFAR10(root='data/cifar_10', train=False, 
                                              transform=transforms.Compose(valid_tfms))
             self.valid_loader = DataLoader(valid_dataset, batch_size=batch_sz, shuffle=False, 
-                                           num_workers=num_workers, drop_last=True)
+                                           num_workers=num_workers, drop_last=False)
         else:
             raise NotImplementedError(f'Unkown dataset: {dataset}')

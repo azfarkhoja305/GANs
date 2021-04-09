@@ -98,6 +98,7 @@ def calc_activation_stats(image_loader, model):
     activation_list = []
     with torch.no_grad():
         for image_batch, _ in tqdm(image_loader, desc='Calculating Stats', leave=False):
+            # From [-1,1] to [0,1]
             image_batch = (image_batch + 1.0) / 2.0
             pred = model(image_batch.to(device))
             activation_list.append(pred[0].view(-1, 2048))
