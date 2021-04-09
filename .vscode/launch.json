@@ -8,7 +8,11 @@
             "name": "debug_DC_GAN_CIFAR.py",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/debug_DC_GAN_CIFAR.py",
+            "program": "${workspaceFolder}/scripts/debug_DC_GAN_CIFAR.py",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
             "console": "integratedTerminal"
         }
     ]
