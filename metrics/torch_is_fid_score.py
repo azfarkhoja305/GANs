@@ -9,7 +9,7 @@ import torch
 
 from metrics.torch_inception import InceptionV3
 from metrics.torch_fid_utils import calculate_frechet_distance, torch_cov
-from utils.utils import check_gpu, set_seed
+from utils.utils import check_gpu
 
 device = check_gpu()
 torch.backends.cudnn.deterministic = True
