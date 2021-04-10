@@ -13,14 +13,13 @@ from utils.utils import check_gpu, set_seed
 
 device = check_gpu()
 
-# Randomly generate the same set of z vectors each time
-set_seed(42)
-
 def is_fid_from_generator(generator, 
                           latent_dims, 
                           num_imgs,
                           batch_sz,
                           fid_stat_path):
+    # Randomly generate the same set of z vectors each time
+    set_seed(42)
     generator.eval()
     with torch.no_grad():
         eval_iter = math.ceil(num_imgs / batch_sz)
