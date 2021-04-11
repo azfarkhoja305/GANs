@@ -12,6 +12,7 @@ from metrics.torch_fid_utils import calculate_frechet_distance, torch_cov
 from utils.utils import check_gpu
 
 device = check_gpu()
+torch.backends.cudnn.deterministic = True
 
 def is_fid_from_generator(generator, 
                           latent_dims, 
@@ -20,7 +21,6 @@ def is_fid_from_generator(generator,
                           fid_stat_path):
     # Randomly generate the same set of z vectors each time
     torch.manual_seed(42)
-    
     generator.eval()
     with torch.no_grad():
         eval_iter = math.ceil(num_imgs / batch_sz)

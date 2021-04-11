@@ -1,5 +1,5 @@
 {
-    "python.pythonPath": "/home/alex/anaconda3/bin/python",
+    "python.pythonPath": "C:\\Users\\azfar.khoja\\Miniconda3\\envs\\pytorch\\python.exe",
     "python.linting.pylintArgs": [
         "--generated-members=numpy.* ,torch.*",
         "--disable",

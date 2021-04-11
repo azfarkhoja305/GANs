@@ -35,29 +35,6 @@ def reduce_resolution(image_batch):
     )
 
 
-class AvgLossMetric:
-    """ Average loss statistics over an entire epoch """
-
-    def __init__(self):
-        self.loss = 0
-        self.num = 0
-
-    def update_state(self, loss, num):
-        assert num > 0, f"num elements = {num}, needs to be greater than zero"
-        # since incoming loss is averaged
-        self.loss += loss * num
-        self.num += num
-
-    def result(self):
-        assert self.num > 0, f"num = {self.num}, needs to be greater than zero"
-        # avg loss for one epoch = total loss / total number of samples
-        return self.loss / self.num
-
-    def reset_state(self):
-        self.loss = 0
-        self.num = 0
-
-
 def display_images(image_holder, ax=None, title=None, nrow=8):
     """
     Randomly plots images from 'image_holder' or
@@ -76,7 +53,9 @@ def display_images(image_holder, ax=None, title=None, nrow=8):
         _, ax = plt.subplots(figsize=(9, 9))
     ax.set_axis_off()
     if isinstance(image_holder, DataLoader):
-        real_batch = next(iter(image_holder))[0]
+        iterator = iter(image_holder)
+        # pick up multiple batches, but show 64 images
+        real_batch = torch.cat([next(iterator)[0] for i in range(4)])
         batch_sz = len(real_batch)
         indices = np.random.permutation(batch_sz)[: min(64, batch_sz)]
         if title is None:

@@ -20,7 +20,6 @@ def main(args):
     device = check_gpu()
     bs = 50 if str(device) == 'cpu' else args.batch_size
     dataset =  ImageDataset(args.dataset, batch_sz = bs)
-    # pdb.set_trace()
     if args.train.lower() == 'true':
         t_or_v = 'train'
         loader = dataset.train_loader
@@ -50,7 +49,7 @@ if __name__=='__main__':
     from utils.utils import check_gpu, set_seed
     from utils.datasets import ImageDataset
 
-    set_seed(seed=123)
+    set_seed(42)
 
     args = make_argparse()
     print(args)
