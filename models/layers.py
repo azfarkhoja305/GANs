@@ -3,8 +3,6 @@ import math
 import torch
 import torch.nn as nn
 
-
-
 def gelu(x):
     """ Original Implementation of the gelu activation function in Google Bert repo when initialy created.
         For information: OpenAI GPT's gelu is slightly different (and gives slightly different results):
@@ -58,9 +56,22 @@ class MLP(nn.Module):
         return x
 
 
+def get_attn_mask(N, w):
+    mask = torch.zeros(1, 1, N, N)
+    for i in range(N):
+        if i <= w:
+            mask[:, :, i, 0:i+w+1] = 1
+        elif N - i <= w:
+            mask[:, :, i, i-w:N] = 1
+        else:
+            mask[:, :, i, i:i+w+1] = 1
+            mask[:, :, i, i-w:i] = 1
+    return mask
+
+
 class Attention(nn.Module):
     def __init__(self, dims, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0,
-                 proj_drop=0, attn_mask=False):
+                 proj_drop=0, att_mask=0):
         super().__init__()
         self.num_heads = num_heads
         assert dims % num_heads == 0, (f'Dims for Attention: {dims}, not divisible '
@@ -72,18 +83,28 @@ class Attention(nn.Module):
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dims, dims)
         self.proj_drop = nn.Dropout(proj_drop)
-        # TODO:
-        if attn_mask:   raise NotImplementedError(f'attn_mask')
-        self.attn_mask = attn_mask
+        self.att_mask = att_mask
+        if att_mask:
+            self.mask_1 = get_attn_mask(att_mask, 6**2)
+            self.mask_2 = get_attn_mask(att_mask, 8**2) 
+            self.mask_3 = get_attn_mask(att_mask, 10**2) 
+            self.mask_4 = get_attn_mask(att_mask, 12**2) 
     
-    def forward(self, x, epoch=None):
+    def forward(self, x, epoch):
         B,N,C = x.shape
         # q,k,v shape: (B, num_heads, N, head_dims)
         q,k,v = self.qkv(x).view(B,N,self.num_heads,-1).permute(0,2,1,3).tensor_split(3, dim=-1)
         # score: (B, num_heads, N, N)
         score = (q @ k.transpose(-2,-1)) * self.scale
-        if self.attn_mask: # TODO: Add logic
-            score = score.masked_fill(mask==0, -1e9)
+
+        if self.att_mask:
+            if epoch < 50:
+                if epoch < 20:  mask = self.mask_1
+                elif epoch < 30:  mask = self.mask_2
+                elif epoch < 40:  mask = self.mask_3
+                else:  mask = self.mask_4
+                score = score.masked_fill(mask.to(score.device)==0, -1e9)
+
         score = self.attn_drop(score.softmax(dim=-1))
         # context: (B, N, C)
         context = (score @ v).permute(0,2,1,3).reshape(B,N,C)
@@ -93,7 +114,7 @@ class Attention(nn.Module):
 
 class Block(nn.Module):
     def __init__(self, dims, num_heads, mlp_ratio=4, qkv_bias=False, qk_scale=None, mlp_drop=0, attn_drop=False,
-                 drop_path=0, att_mask=False, act_layer=gelu, norm_layer=nn.LayerNorm):
+                 drop_path=0, att_mask=0, act_layer=gelu, norm_layer=nn.LayerNorm):
         super().__init__()
         self.norm_1 = norm_layer(dims)
         self.attention = Attention(dims, num_heads, qkv_bias, qk_scale, attn_drop, 
@@ -104,7 +125,7 @@ class Block(nn.Module):
         self.mlp = MLP(in_feat=dims, hidden_feat=mlp_hidden_dim, act_layer=act_layer, 
                        drop=mlp_drop)
 
-    def forward(self,x,epoch=None):
+    def forward(self, x, epoch):
         x = x + self.drop_path(self.attention(self.norm_1(x), epoch))
         x = x + self.drop_path(self.mlp(self.norm_2(x)))
         return x  
