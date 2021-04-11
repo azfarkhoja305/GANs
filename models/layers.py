@@ -97,7 +97,7 @@ class Attention(nn.Module):
         # score: (B, num_heads, N, N)
         score = (q @ k.transpose(-2,-1)) * self.scale
 
-        if self.att_mask:
+        if self.att_mask and epoch is not None:
             if epoch < 50:
                 if epoch < 20:  mask = self.mask_1
                 elif epoch < 30:  mask = self.mask_2

@@ -55,7 +55,7 @@ class TGenerator(nn.Module):
         
         self.to_rgb = To_RGB(ch_dims=embed_chs//16, img_size=img_size)
 
-    def forward(self, x, epoch):
+    def forward(self, x, epoch=None):
         x = self.in_layer(x) + self.pos_embed[0]
         for blk in self.bottom_block:
             x = blk(x,epoch)
