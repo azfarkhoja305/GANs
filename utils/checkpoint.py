@@ -4,6 +4,8 @@ import numpy as np
 import torch
 import re
 
+Path.ls = lambda x: list(x.iterdir())
+
 
 class Checkpoint:
     """Saves checkpoints at required epochs. Additionally
@@ -85,6 +87,8 @@ class Checkpoint:
         epoch=-1,
         loss_logs=None,
     ):
+        if isinstance(file_path, str):
+            file_path = Path(file_path)
         assert (
             not file_path.is_dir()
         ), f"`file_path` cannot be a dir, Needs to be dir/file_name"
