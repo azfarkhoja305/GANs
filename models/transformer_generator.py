@@ -32,7 +32,7 @@ class TGenerator(nn.Module):
                             qkv_bias=qkv_bias, qk_scale=qk_scale, mlp_drop=mlp_drop, 
                             attn_drop=attn_drop, act_layer=act_layer, norm_layer=norm_layer)
         
-        # self attention initialization for last block
+        # self attention mask initialization for last block
         self.last_mask = (self.bottom_width*4)**2 if use_att_mask else 0
 
         # stochastic depth decay rule
