@@ -46,7 +46,7 @@ class Checkpoint:
     def at_epoch_end(self, generator, critic, gen_opt, critic_opt, epoch, loss_logs):
         if epoch in self.ckp_epochs:
             self.save_checkpoint(
-                self.ckp_folder / f"GanModel_{epoch}.pth",
+                self.ckp_folder / f"GanModel_{epoch:03}.pth",
                 generator,
                 critic,
                 gen_opt,
