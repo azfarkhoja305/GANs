@@ -49,6 +49,7 @@ def compute_gradient_penalty(D, real_samples, fake_samples, phi, use_cpu):
         retain_graph=True,
         only_inputs=True,
     )[0]
+    gradients = gradients.contiguous()
     gradients = gradients.view(gradients.size(0), -1)
     gradient_penalty = ((gradients.norm(2, dim=1) - phi) ** 2).mean()
     return gradient_penalty

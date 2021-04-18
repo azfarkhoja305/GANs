@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import math
 from models.ViT_helper import DropPath, to_2tuple, trunc_normal_
+from utils.diff_aug import DiffAugment
 
 
 def gelu(x):
@@ -192,6 +193,7 @@ class Discriminator(nn.Module):
         drop_path_rate=0.0,
         hybrid_backbone=None,
         norm_layer=nn.LayerNorm,
+        augments="",
     ):
         super().__init__()
         self.num_classes = num_classes
@@ -251,6 +253,7 @@ class Discriminator(nn.Module):
         trunc_normal_(self.pos_embed, std=0.02)
         trunc_normal_(self.cls_token, std=0.02)
         self.apply(self._init_weights)
+        self.augments = augments
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -275,8 +278,7 @@ class Discriminator(nn.Module):
         )
 
     def forward_features(self, x):
-        # if "None" not in self.args.diff_aug:
-        #     x = DiffAugment(x, self.args.diff_aug, True)
+        x = DiffAugment(x, self.augments)
         B = x.shape[0]
         x = self.patch_embed(x).flatten(2).permute(0, 2, 1)
 
