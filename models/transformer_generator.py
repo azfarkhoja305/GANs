@@ -66,7 +66,7 @@ class TGenerator(nn.Module):
         x = self.to_rgb(x)
         return x.contiguous()
 
-    def super_resolution(self, x):
+    def super_resolution(self, x, epoch=None):
         """ Start from the 2nd stage of the Generator for now. """
         # Push channels to last dimention and project
         x = self.ct_in_layer(x.permute(0,2,3,1)) 
@@ -75,6 +75,6 @@ class TGenerator(nn.Module):
                 x = x + self.pos_embed[i+1]
             else:    x = self.pixel_upsample[i](x) + self.pos_embed[i+1]
             for blk in blocks:
-                x = blk(x)
+                x = blk(x,epoch)
         x = self.to_rgb(x)
         return x.contiguous()
