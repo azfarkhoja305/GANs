@@ -9,7 +9,7 @@ from utils.trunc_normal import trunc_normal_
 class TGenerator(nn.Module):
     def __init__(self, latent_dims=1024, img_size=32, bottom_width=8, embed_chs=384, depth=[5,2,2],
                  drop_path_rate=0, num_heads=4, mlp_ratio=4, qkv_bias=False, qk_scale=None,  
-                 mlp_drop=0, attn_drop=0, att_mask=False, act_layer=gelu, norm_layer=nn.LayerNorm):
+                 mlp_drop=0, attn_drop=0, use_att_mask=False, act_layer=gelu, norm_layer=nn.LayerNorm):
         
         super().__init__()
         # fix depth = 3 for now since it requires changes in upsample 
@@ -29,16 +29,23 @@ class TGenerator(nn.Module):
             trunc_normal_(emb, std=.02)
 
         Partial_Block = functools.partial(Block, num_heads=num_heads, mlp_ratio=mlp_ratio, 
-                            qkv_bias=qkv_bias, qk_scale=qk_scale, mlp_drop=mlp_drop, attn_drop=attn_drop, 
-                            att_mask=att_mask, act_layer=act_layer, norm_layer=norm_layer)
+                            qkv_bias=qkv_bias, qk_scale=qk_scale, mlp_drop=mlp_drop, 
+                            attn_drop=attn_drop, act_layer=act_layer, norm_layer=norm_layer)
+        
+        # self attention mask initialization for last block
+        self.last_mask = (self.bottom_width*4)**2 if use_att_mask else 0
+
         # stochastic depth decay rule
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth[0])]  
         self.bottom_block = nn.ModuleList([ 
-                    Partial_Block(dims=embed_chs, drop_path=dpr[i]) for i in range(depth[0]) 
+                    Partial_Block(dims=embed_chs, drop_path=dpr[i], att_mask=0) \
+                                  for i in range(depth[0]) 
         ])
         self.upsample_block = nn.ModuleList([
-                    nn.ModuleList([Partial_Block(dims=embed_chs//4, drop_path=0)] * depth[1]),
-                    nn.ModuleList([Partial_Block(dims=embed_chs//16, drop_path=0)] * depth[2])
+            nn.ModuleList([Partial_Block(dims=embed_chs//4, drop_path=0,
+                                         att_mask=0)] * depth[1]),
+            nn.ModuleList([Partial_Block(dims=embed_chs//16, drop_path=0, 
+                                         att_mask=self.last_mask)] * depth[2])
         ])
 
         self.pixel_upsample = nn.ModuleList([
@@ -59,7 +66,7 @@ class TGenerator(nn.Module):
         x = self.to_rgb(x)
         return x.contiguous()
 
-    def super_resolution(self, x):
+    def super_resolution(self, x, epoch=None):
         """ Start from the 2nd stage of the Generator for now. """
         # Push channels to last dimention and project
         x = self.ct_in_layer(x.permute(0,2,3,1)) 
@@ -68,6 +75,6 @@ class TGenerator(nn.Module):
                 x = x + self.pos_embed[i+1]
             else:    x = self.pixel_upsample[i](x) + self.pos_embed[i+1]
             for blk in blocks:
-                x = blk(x)
+                x = blk(x,epoch)
         x = self.to_rgb(x)
         return x.contiguous()

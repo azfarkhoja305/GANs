@@ -1,7 +1,4 @@
 import random
-from pathlib import Path
-
-Path.ls = lambda x: list(x.iterdir())
 
 import numpy as np
 import matplotlib.pyplot as plt
