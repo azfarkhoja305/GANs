@@ -34,7 +34,7 @@ class Checkpoint:
             file for file in self.ckp_folder.ls() if file.suffix in [".pth", ".pt"]
         ]
         if not ckp_files:
-            return generator, critic, gen_opt, critic_opt, 0, None
+            return generator, critic, gen_opt, critic_opt, 0, 0, None
         print(
             "Checkpoint folder with checkpoints already exists. Searching for the latest."
         )
@@ -45,7 +45,7 @@ class Checkpoint:
             ckp_files[idx], generator, critic, gen_opt, critic_opt
         )
 
-    def at_epoch_end(self, generator, critic, gen_opt, critic_opt, epoch, loss_logs):
+    def at_epoch_end(self, generator, critic, gen_opt, critic_opt, epoch, step, loss_logs):
         if epoch in self.ckp_epochs:
             self.save_checkpoint(
                 self.ckp_folder / f"GanModel_{epoch:03}.pth",
@@ -54,6 +54,7 @@ class Checkpoint:
                 gen_opt,
                 critic_opt,
                 epoch,
+                step,
                 loss_logs,
             )
 
@@ -75,7 +76,8 @@ class Checkpoint:
 
         epoch_complete = ckp["epoch"]
         loss_logs = ckp["loss_logs"]
-        return generator, critic, gen_opt, critic_opt, epoch_complete + 1, loss_logs
+        step = ckp["step"]
+        return generator, critic, gen_opt, critic_opt, epoch_complete + 1, step, loss_logs
 
     @staticmethod
     def save_checkpoint(
@@ -85,6 +87,7 @@ class Checkpoint:
         gen_opt=None,
         critic_opt=None,
         epoch=-1,
+        step=-1,
         loss_logs=None,
     ):
         if isinstance(file_path, str):
@@ -108,6 +111,7 @@ class Checkpoint:
                 "gen_optim_state_dict": gen_opt_dict,
                 "critic_optim_state_dict": critic_opt_dict,
                 "epoch": epoch,
+                "step": step,
                 "loss_logs": loss_logs,
             },
             file_path,
