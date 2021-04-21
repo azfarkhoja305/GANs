@@ -88,3 +88,33 @@ def display_images(image_holder, ax=None, title=None, nrow=8):
         else:
             ax.set_title(title)
         ax.imshow(np.transpose(image_holder, (1, 2, 0)))
+
+    def weights_init(m):
+        classname = m.__class__.__name__
+        if classname.find('Conv2d') != -1:
+            nn.init.xavier_uniform_(m.weight.data, 1.)
+        elif classname.find('BatchNorm2d') != -1:
+            nn.init.normal_(m.weight.data, 1.0, 0.02)
+            nn.init.constant_(m.bias.data, 0.0)
+
+class LinearLrDecay(object):
+    def __init__(self, optimizer, start_lr, end_lr, decay_start_step, decay_end_step):
+
+        assert start_lr > end_lr
+        self.optimizer = optimizer
+        self.delta = (start_lr - end_lr) / (decay_end_step - decay_start_step)
+        self.decay_start_step = decay_start_step
+        self.decay_end_step = decay_end_step
+        self.start_lr = start_lr
+        self.end_lr = end_lr
+
+    def step(self, current_step):
+        if current_step <= self.decay_start_step:
+            lr = self.start_lr
+        elif current_step >= self.decay_end_step:
+            lr = self.end_lr
+        else:
+            lr = self.start_lr - self.delta * (current_step - self.decay_start_step)
+            for param_group in self.optimizer.param_groups:
+                param_group['lr'] = lr
+        return lr
