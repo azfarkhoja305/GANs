@@ -6,6 +6,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import torchvision.utils as vutils
+import torch.nn as nn
 
 
 def check_gpu():
