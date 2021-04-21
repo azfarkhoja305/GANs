@@ -79,7 +79,7 @@ class Checkpoint:
         if critic_opt is not None and ckp["critic_optim_state_dict"] is not None:
             critic_opt.load_state_dict(ckp["critic_optim_state_dict"])
         generator_avg_params = None
-        if "generator_avg_state_dict" not in ckp:
+        if "generator_avg_state_dict" in ckp:
             generator_avg = deepcopy(generator)
             generator_avg.load_state_dict(checkpoint['generator_avg_state_dict'])
             generator_avg_params = deepcopy(list(p.data for p in generator_avg.parameters()))
