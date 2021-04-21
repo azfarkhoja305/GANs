@@ -89,13 +89,13 @@ def display_images(image_holder, ax=None, title=None, nrow=8):
             ax.set_title(title)
         ax.imshow(np.transpose(image_holder, (1, 2, 0)))
 
-    def weights_init(m):
-        classname = m.__class__.__name__
-        if classname.find('Conv2d') != -1:
-            nn.init.xavier_uniform_(m.weight.data, 1.)
-        elif classname.find('BatchNorm2d') != -1:
-            nn.init.normal_(m.weight.data, 1.0, 0.02)
-            nn.init.constant_(m.bias.data, 0.0)
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find('Conv2d') != -1:
+        nn.init.xavier_uniform_(m.weight.data, 1.)
+    elif classname.find('BatchNorm2d') != -1:
+        nn.init.normal_(m.weight.data, 1.0, 0.02)
+        nn.init.constant_(m.bias.data, 0.0)
 
 class LinearLrDecay(object):
     def __init__(self, optimizer, start_lr, end_lr, decay_start_step, decay_end_step):
