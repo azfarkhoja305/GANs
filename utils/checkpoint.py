@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import re
 from copy import deepcopy
-from utils import load_params
+from utils.utils import load_params
 
 Path.ls = lambda x: list(x.iterdir())
 
