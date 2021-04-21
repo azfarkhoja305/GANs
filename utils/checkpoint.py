@@ -3,6 +3,8 @@ import torch.nn as nn
 import numpy as np
 import torch
 import re
+from copy import deepcopy
+from utils import load_params
 
 Path.ls = lambda x: list(x.iterdir())
 
@@ -28,13 +30,15 @@ class Checkpoint:
     def check_if_exists(self, generator, critic, gen_opt, critic_opt):
         if not self.ckp_folder.exists():
             self.ckp_folder.mkdir(parents=True)
-            return generator, critic, gen_opt, critic_opt, 0, 0, None
+            generator_avg_params = deepcopy(list(p.data for p in generator.parameters()))
+            return generator, generator_avg_params, critic, gen_opt, critic_opt, 0, 0, None
 
         ckp_files = [
             file for file in self.ckp_folder.ls() if file.suffix in [".pth", ".pt"]
         ]
         if not ckp_files:
-            return generator, critic, gen_opt, critic_opt, 0, 0, None
+            generator_avg_params = deepcopy(list(p.data for p in generator.parameters()))
+            return generator, generator_avg_params, critic, gen_opt, critic_opt, 0, 0, None
         print(
             "Checkpoint folder with checkpoints already exists. Searching for the latest."
         )
@@ -45,12 +49,13 @@ class Checkpoint:
             ckp_files[idx], generator, critic, gen_opt, critic_opt
         )
 
-    def at_epoch_end(self, generator, critic, gen_opt, critic_opt, epoch, step, loss_logs):
+    def at_epoch_end(self, generator, generator_avg_params, critic, gen_opt, critic_opt, epoch, step, loss_logs):
         if epoch in self.ckp_epochs:
             self.save_checkpoint(
                 self.ckp_folder / f"GanModel_{epoch:03}.pth",
                 generator,
                 critic,
+                generator_avg_params,
                 gen_opt,
                 critic_opt,
                 epoch,
@@ -73,17 +78,24 @@ class Checkpoint:
             gen_opt.load_state_dict(ckp["gen_optim_state_dict"])
         if critic_opt is not None and ckp["critic_optim_state_dict"] is not None:
             critic_opt.load_state_dict(ckp["critic_optim_state_dict"])
+        generator_avg_params = None
+        if ckp["generator_avg_state_dict"] is not None:
+            generator_avg = deepcopy(generator)
+            generator_avg.load_state_dict(checkpoint['generator_avg_state_dict'])
+            generator_avg_params = deepcopy(list(p.data for p in generator_avg.parameters()))
+
 
         epoch_complete = ckp["epoch"]
         loss_logs = ckp["loss_logs"]
         step = ckp["step"]
-        return generator, critic, gen_opt, critic_opt, epoch_complete + 1, step, loss_logs
+        return generator, generator_avg_params, critic, gen_opt, critic_opt, epoch_complete + 1, step, loss_logs
 
     @staticmethod
     def save_checkpoint(
         file_path,
         generator,
         critic,
+        generator_avg_params=None,
         gen_opt=None,
         critic_opt=None,
         epoch=-1,
@@ -100,6 +112,11 @@ class Checkpoint:
             file_path.suffix in ckp_suffix
         ), f"{file_path.name} is not in checkpoint file format"
         assert isinstance(generator, nn.Module), f"Generator is not nn.Module"
+        generator_avg_state_dict = None
+        if generator_avg_params:
+            generator_avg = deepcopy(generator)
+            load_params(generator_avg, generator_avg_params)
+            generator_avg_state_dict = generator_avg.state_dict()
         assert isinstance(critic, nn.Module), f"Discriminator is not nn.Module"
         print(f"=> Saving Checkpoint with name `{file_path.name}`")
         gen_opt_dict = gen_opt.state_dict() if gen_opt is not None else None
@@ -107,6 +124,7 @@ class Checkpoint:
         torch.save(
             {
                 "generator_state_dict": generator.state_dict(),
+                "generator_avg_state_dict": generator_avg_state_dict,
                 "critic_state_dict": critic.state_dict(),
                 "gen_optim_state_dict": gen_opt_dict,
                 "critic_optim_state_dict": critic_opt_dict,

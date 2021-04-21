@@ -119,3 +119,7 @@ class LinearLrDecay(object):
             for param_group in self.optimizer.param_groups:
                 param_group['lr'] = lr
         return lr
+
+def load_params(model, new_param):
+    for p, new_p in zip(model.parameters(), new_param):
+        p.data.copy_(new_p)
