@@ -87,7 +87,9 @@ class Checkpoint:
 
         epoch_complete = ckp["epoch"]
         loss_logs = ckp["loss_logs"]
-        step = ckp["step"]
+        step = 0
+        if "step" in ckp:
+            step = ckp["step"]
         return generator, generator_avg_params, critic, gen_opt, critic_opt, epoch_complete + 1, step, loss_logs
 
     @staticmethod
