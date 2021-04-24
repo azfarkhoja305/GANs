@@ -7,15 +7,21 @@ from models.layers import Block, LinearReshape, PixelUpsample, To_RGB, gelu
 from utils.trunc_normal import trunc_normal_
 
 class TGenerator(nn.Module):
-    def __init__(self, latent_dims=1024, img_size=32, bottom_width=8, embed_chs=384, depth=[5,2,2],
-                 drop_path_rate=0, num_heads=4, mlp_ratio=4, qkv_bias=False, qk_scale=None,  
+    def __init__(self, latent_dims=1024, img_size=32, bottom_width=8, embed_chs=384, num_classes=None,
+                 depth=[5,2,2], drop_path_rate=0, num_heads=4, mlp_ratio=4, qkv_bias=False, qk_scale=None,  
                  mlp_drop=0, attn_drop=0, use_att_mask=False, act_layer=gelu, norm_layer=nn.LayerNorm):
         
         super().__init__()
         # fix depth = 3 for now since it requires changes in upsample 
         assert isinstance(depth, list) and len(depth) == 3
+        
+        self.num_classes = num_classes
+        if num_classes is not None:
+            self.class_embed = nn.Embedding(num_classes, latent_dims)
+            trunc_normal_(self.class_embed.weight, std=0.02)
 
         self.bottom_width, self.embed_chs = bottom_width, embed_chs
+
         self.in_layer = LinearReshape(in_dims=latent_dims, out_dims=embed_chs*bottom_width**2, 
                                       width=bottom_width, embed_chs=embed_chs)
         self.ct_in_layer = LinearReshape(in_dims=3, out_dims=embed_chs//4,
@@ -55,7 +61,9 @@ class TGenerator(nn.Module):
         
         self.to_rgb = To_RGB(ch_dims=embed_chs//16, img_size=img_size)
 
-    def forward(self, x, epoch=None):
+    def forward(self, x, class_idx=None, epoch=None):
+        if class_idx is not None:
+            x += self.class_embed(class_idx)
         x = self.in_layer(x) + self.pos_embed[0]
         for blk in self.bottom_block:
             x = blk(x,epoch)

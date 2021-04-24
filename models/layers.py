@@ -85,10 +85,10 @@ class Attention(nn.Module):
         self.proj_drop = nn.Dropout(proj_drop)
         self.att_mask = att_mask
         if att_mask:
-            self.mask_1 = get_attn_mask(att_mask, 6)
-            self.mask_2 = get_attn_mask(att_mask, 8) 
-            self.mask_3 = get_attn_mask(att_mask, 10) 
-            self.mask_4 = get_attn_mask(att_mask, 12) 
+            self.mask_1 = get_attn_mask(att_mask, 6**2)
+            self.mask_2 = get_attn_mask(att_mask, 8**2) 
+            self.mask_3 = get_attn_mask(att_mask, 10**2) 
+            self.mask_4 = get_attn_mask(att_mask, 12**2) 
     
     def forward(self, x, epoch):
         B,N,C = x.shape

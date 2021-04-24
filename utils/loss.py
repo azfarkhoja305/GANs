@@ -33,7 +33,7 @@ def compute_gradient_penalty(D, real_samples, fake_samples, phi, use_cpu):
     interpolates = (alpha * real_samples + ((1 - alpha) * fake_samples)).requires_grad_(
         True
     )
-    d_interpolates = D(interpolates)
+    d_interpolates, _ = D(interpolates)
     if use_cpu:
         fake = torch.ones([real_samples.shape[0], 1], requires_grad=False)
     else:
