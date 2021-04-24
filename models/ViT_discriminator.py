@@ -181,7 +181,7 @@ class Discriminator(nn.Module):
         img_size=32,
         patch_size=4,
         in_chans=3,
-        num_classes=1,
+        num_classes=None,
         embed_dim=None,
         depth=7,
         num_heads=4,
@@ -196,7 +196,7 @@ class Discriminator(nn.Module):
         augments="",
     ):
         super().__init__()
-        self.num_classes = num_classes
+        self.num_classes = args.num_classes
         self.num_features = args.df_dim
         embed_dim = args.df_dim
         self.embed_dim = args.df_dim  # num_features for consistency with other models
@@ -246,9 +246,9 @@ class Discriminator(nn.Module):
         # self.repr_act = nn.Tanh()
 
         # Classifier head
-        self.head = (
-            nn.Linear(embed_dim, num_classes) if num_classes > 0 else nn.Identity()
-        )
+        self.head = nn.Linear(embed_dim, 1)
+        if self.num_classes is not None:
+            self.classifier = nn.Linear(embed_dim, self.num_classes)
 
         trunc_normal_(self.pos_embed, std=0.02)
         trunc_normal_(self.cls_token, std=0.02)
@@ -264,18 +264,18 @@ class Discriminator(nn.Module):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
-    @torch.jit.ignore
+    # @torch.jit.ignore
     def no_weight_decay(self):
         return {"pos_embed", "cls_token"}
 
-    def get_classifier(self):
-        return self.head
+    # def get_classifier(self):
+    #     return self.head
 
-    def reset_classifier(self, num_classes):
-        self.num_classes = num_classes
-        self.head = (
-            nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
-        )
+    # def reset_classifier(self, num_classes):
+    #     self.num_classes = num_classes
+    #     self.head = (
+    #         nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
+    #     )
 
     def forward_features(self, x):
         x = DiffAugment(x, self.augments)
@@ -296,5 +296,7 @@ class Discriminator(nn.Module):
 
     def forward(self, x):
         x = self.forward_features(x)
-        x = self.head(x)
-        return x
+        head = self.head(x)
+        if self.num_classes is not None:
+            return head, self.classifier(x)
+        return head

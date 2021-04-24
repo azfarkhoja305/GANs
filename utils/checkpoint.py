@@ -28,7 +28,7 @@ class Checkpoint:
     def check_if_exists(self, generator, critic, gen_opt, critic_opt):
         if not self.ckp_folder.exists():
             self.ckp_folder.mkdir(parents=True)
-            return generator, critic, gen_opt, critic_opt, 0, None
+            return generator, critic, gen_opt, critic_opt, 0, 0, None
 
         ckp_files = [
             file for file in self.ckp_folder.ls() if file.suffix in [".pth", ".pt"]
