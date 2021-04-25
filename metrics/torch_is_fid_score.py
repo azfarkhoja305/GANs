@@ -15,7 +15,8 @@ device = check_gpu()
 torch.backends.cudnn.deterministic = True
 
 def is_fid_from_generator(generator, 
-                          latent_dims, 
+                          latent_dims,
+                          num_classes, 
                           num_imgs,
                           batch_sz,
                           fid_stat_path):
@@ -28,7 +29,9 @@ def is_fid_from_generator(generator,
         for i in tqdm(range(eval_iter), leave=False, desc='generating images'):
             b_sz = min(batch_sz, num_imgs-i*batch_sz)
             z = torch.randn(b_sz, latent_dims, device=device)
-            gen_imgs = generator(z)
+            fake_labels = torch.randint(high=num_classes, size=(b_sz,),
+                             device=device)
+            gen_imgs = generator(z, class_idx = fake_labels)
             if isinstance(gen_imgs, tuple):
                 gen_imgs = gen_imgs[0]
             img_list += [gen_imgs]
